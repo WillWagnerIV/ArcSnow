@@ -1,6 +1,7 @@
 import arcpy
 
 from credentials import Credentials
+from snowflake.connector import DictCursor
 import snowflake.connector
 
 class ArcSnow(object):
@@ -51,6 +52,10 @@ class ArcSnow(object):
     @property
     def cursor(self):
         return self._conn.cursor()
+        
+    @property
+    def dict_cursor(self):
+        return self._conn.cursor(snowflake.connector.DictCursor)
         
 if __name__ == "__main__":
     arcsnow = ArcSnow("CredentialsFile.ini")

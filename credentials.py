@@ -105,6 +105,141 @@ class Credentials(object):
             
         except:
             return False
+            
+
+class test_credentials(object):
+    def __init__(self):
+        """Define the tool (tool name is the name of the class)."""
+        self.label = "Test Credentials"
+        self.description = "Test a Snowflake credential"
+        self.canRunInBackground = False
+        self.category = "Preparation"
+        
+    def getParameterInfo(self):
+        """Define parameter definitions"""
+        credentials = arcpy.Parameter(
+            displayName="Credentials File",
+            name="credentials",
+            datatype="DEFile",
+            parameterType="Required",
+            direction="Input")
+        
+        valid = arcpy.Parameter(
+            displayName="Is Valid",
+            name="valid",
+            datatype="GPBoolean",
+            parameterType="Derived",
+            direction="Output")
+        
+        return [credentials, valid]
+        
+    def execute(self, parameters, messages):
+        parameters[1].value = False
+        
+        arcpy.AddMessage("Here")
+        arcsnow = ArcSnow(parameters[0].valueAsText)
+        arcpy.AddMessage("Here")
+        
+        arcsnow.login()
+        arcpy.AddMessage("Here")
+        
+        parameters[1].value = True
+        
+        
+class generate_credentials(object):
+    def __init__(self):
+        """Define the tool (tool name is the name of the class)."""
+        self.label = "Generate Credential File"
+        self.description = "Create a credentials file used to authenticate with Snowflake"
+        self.canRunInBackground = False
+        self.category = "Preparation"
+        
+    def getParameterInfo(self):
+        """Define parameter definitions"""
+        username = arcpy.Parameter(
+            displayName="Username",
+            name="username",
+            datatype="GPString",
+            parameterType="Required",
+            direction="Input")
+            
+        password = arcpy.Parameter(
+            displayName="Password",
+            name="password",
+            datatype="GPStringHidden",
+            parameterType="Required",
+            direction="Input")
+            
+        account = arcpy.Parameter(
+            displayName="Account",
+            name="account",
+            datatype="GPString",
+            parameterType="Required",
+            direction="Input")
+            
+        warehouse = arcpy.Parameter(
+            displayName="Warehouse",
+            name="warehouse",
+            datatype="GPString",
+            parameterType="Required",
+            direction="Input")
+            
+        database = arcpy.Parameter(
+            displayName="Database",
+            name="database",
+            datatype="GPString",
+            parameterType="Required",
+            direction="Input")
+            
+        schema = arcpy.Parameter(
+            displayName="Schema",
+            name="schema",
+            datatype="GPString",
+            parameterType="Required",
+            direction="Input")
+
+        output_path = arcpy.Parameter(
+            displayName="Output Location",
+            name="output",
+            datatype="DEFolder",
+            parameterType="Required",
+            direction="Input")
+            
+        out_file = arcpy.Parameter(
+            displayName = "Out Credential File",
+            name = "credential_filepath",
+            datatype = "DEFile",
+            parameterType = "Derived",
+            direction = "Output")
+         
+        output_path.value = arcpy.mp.ArcGISProject("CURRENT").homeFolder
+
+        return [username, password, account, warehouse, database, schema, output_path, out_file]
+
+    def updateParameters(self, parameters):
+        if not parameters[6].value:
+            parameters[6].value = arcpy.mp.ArcGISProject("CURRENT").homeFolder
+                      
+        if not parameters[6].hasBeenValidated or not parameters[6].altered:
+            credentials = Credentials()
+            credentials.location = parameters[6].valueAsText
+            parameters[7].value = credentials.path
+        
+    def execute(self, parameters, messages):        
+        credentials = Credentials()
+        
+        credentials.username = parameters[0].valueAsText
+        credentials.password = parameters[1].valueAsText
+        credentials.account = parameters[2].valueAsText
+        credentials.warehouse = parameters[3].valueAsText
+        credentials.database = parameters[4].valueAsText
+        credentials.schema = parameters[5].valueAsText
+        credentials.location = parameters[6].valueAsText
+        
+        credentials.create_cred()
+        
+        parameters[7].value = credentials.path
+        
         
 if __name__ == "__main__":
     credentials = Credentials()

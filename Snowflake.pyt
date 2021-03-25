@@ -8,7 +8,8 @@ import csv
 import pandas as pd
 
 from arcsnow import ArcSnow
-from credentials import Credentials
+from credentials import *
+
 
 class Toolbox(object):
     def __init__(self):
@@ -18,147 +19,13 @@ class Toolbox(object):
         self.alias = "snowflake_toolbox"
 
         # List of tool classes associated with this toolbox
-        self.tools = [test_credentials, cvs_upload, drop_table, download_table, generate_credentials]
+        self.tools = [test_credentials, cvs_upload, download_query, generate_credentials]
 
-class test_credentials(object):
+class download_query(object):
     def __init__(self):
         """Define the tool (tool name is the name of the class)."""
-        self.label = "Test Credentials"
-        self.description = "Test a Snowflake credential"
-        self.canRunInBackground = False
-        self.category = "Preparation"
-        
-    def getParameterInfo(self):
-        """Define parameter definitions"""
-        credentials = arcpy.Parameter(
-            displayName="Credentials File",
-            name="credentials",
-            datatype="DEFile",
-            parameterType="Required",
-            direction="Input")
-        
-        valid = arcpy.Parameter(
-            displayName="Is Valid",
-            name="valid",
-            datatype="GPBoolean",
-            parameterType="Derived",
-            direction="Output")
-        
-        return [credentials, valid]
-        
-    def execute(self, parameters, messages):
-        parameters[1].value = False
-        
-        arcpy.AddMessage("Here")
-        arcsnow = ArcSnow(parameters[0].valueAsText)
-        arcpy.AddMessage("Here")
-        
-        arcsnow.login()
-        arcpy.AddMessage("Here")
-        
-        parameters[1].value = True
-        
-        
-class generate_credentials(object):
-    def __init__(self):
-        """Define the tool (tool name is the name of the class)."""
-        self.label = "Generate Credential File"
-        self.description = "Create a credentials file used to authenticate with Snowflake"
-        self.canRunInBackground = False
-        self.category = "Preparation"
-        
-    def getParameterInfo(self):
-        """Define parameter definitions"""
-        username = arcpy.Parameter(
-            displayName="Username",
-            name="username",
-            datatype="GPString",
-            parameterType="Required",
-            direction="Input")
-            
-        password = arcpy.Parameter(
-            displayName="Password",
-            name="password",
-            datatype="GPStringHidden",
-            parameterType="Required",
-            direction="Input")
-            
-        account = arcpy.Parameter(
-            displayName="Account",
-            name="account",
-            datatype="GPString",
-            parameterType="Required",
-            direction="Input")
-            
-        warehouse = arcpy.Parameter(
-            displayName="Warehouse",
-            name="warehouse",
-            datatype="GPString",
-            parameterType="Required",
-            direction="Input")
-            
-        database = arcpy.Parameter(
-            displayName="Database",
-            name="database",
-            datatype="GPString",
-            parameterType="Required",
-            direction="Input")
-            
-        schema = arcpy.Parameter(
-            displayName="Schema",
-            name="schema",
-            datatype="GPString",
-            parameterType="Required",
-            direction="Input")
-
-        output_path = arcpy.Parameter(
-            displayName="Output Location",
-            name="output",
-            datatype="DEFolder",
-            parameterType="Required",
-            direction="Input")
-            
-        out_file = arcpy.Parameter(
-            displayName = "Out Credential File",
-            name = "credential_filepath",
-            datatype = "DEFile",
-            parameterType = "Derived",
-            direction = "Output")
-         
-        output_path.value = arcpy.mp.ArcGISProject("CURRENT").homeFolder
-
-        return [username, password, account, warehouse, database, schema, output_path, out_file]
-
-    def updateParameters(self, parameters):
-        if not parameters[6].value:
-            parameters[6].value = arcpy.mp.ArcGISProject("CURRENT").homeFolder
-                      
-        if not parameters[6].hasBeenValidated or not parameters[6].altered:
-            credentials = Credentials()
-            credentials.location = parameters[6].valueAsText
-            parameters[7].value = credentials.path
-        
-    def execute(self, parameters, messages):        
-        credentials = Credentials()
-        
-        credentials.username = parameters[0].valueAsText
-        credentials.password = parameters[1].valueAsText
-        credentials.account = parameters[2].valueAsText
-        credentials.warehouse = parameters[3].valueAsText
-        credentials.database = parameters[4].valueAsText
-        credentials.schema = parameters[5].valueAsText
-        credentials.location = parameters[6].valueAsText
-        
-        credentials.create_cred()
-        
-        parameters[7].value = credentials.path
-        
-
-class download_table(object):
-    def __init__(self):
-        """Define the tool (tool name is the name of the class)."""
-        self.label = "Download Table"
-        self.description = "Convert a Snowflake table to a GDB table"
+        self.label = "Download Query"
+        self.description = "Convert a Snowflake query to a GDB table"
         self.canRunInBackground = False
         self.category = "ETL"
 
@@ -172,10 +39,10 @@ class download_table(object):
             parameterType="Required",
             direction="Input")
         
-        table_name = arcpy.Parameter(
-            displayName="Table Name",
-            name="table_name",
-            datatype="GPString",
+        sql_query = arcpy.Parameter(
+            displayName="SQL Query",
+            name="sql_query",
+            datatype="GPSQLExpression",
             parameterType="Required",
             direction="Input")
 
@@ -194,53 +61,31 @@ class download_table(object):
             datatype="GPString",
             parameterType="Required",
             direction="Input")
-
-        limit = arcpy.Parameter(
-            displayName="Limit",
-            name="limit",
-            datatype="GPBoolean",
-            parameterType="Optional",
-            direction="Input")
-
-        row_count = arcpy.Parameter(
-            displayName="Row Count",
-            name="row_count",
-            datatype="GPLong",
-            parameterType="Optional",
-            direction="Input")
         
-        return [credentials, table_name, out_database, out_name, limit, row_count]
+        return [credentials, sql_query, out_database, out_name]
     
     def updateParameters(self, parameters):
         """Modify the values and properties of parameters before internal
         validation is performed.  This method is called whenever a parameter
         has been changed."""
-        if not parameters[0].hasBeenValidated and parameters[0].valueAsText:
-            arcsnow = ArcSnow(parameters[0].valueAsText)
-            arcsnow.login()
-
-            parameters[1].filter.type = "ValueList"       
-            parameters[1].filter.list = [row[0] for row in arcsnow.cursor.execute("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES \
-            WHERE TABLE_SCHEMA NOT LIKE 'INFORMATION_SCHEMA'")]
-            
-            arcsnow.logout()
         
-        
-        if not parameters[1].hasBeenValidated and parameters[1].valueAsText:
-            parameters[3].value = os.path.splitext(os.path.basename(parameters[1].valueAsText))[0]
-
         return
 
     def execute(self, parameters, messages):
-        table_name = parameters[1].valueAsText
+        sql_query = parameters[1].valueAsText
         out_database = parameters[2].valueAsText
         out_name = parameters[3].valueAsText
-        limit = parameters[4].value
-        row_count = parameters[5].value
-
+        
         arcsnow = ArcSnow(parameters[0].valueAsText)
         arcsnow.login()
 
+        arcpy.AddMessage(sql_query)
+        results = arcsnow.dict_cursor.execute(sql_query)
+        results.fetchone()
+        for rec in results:
+            arcpy.AddMessage(rec)
+            
+        '''
         columns = arcsnow.cursor.execute(f"""SELECT COLUMN_NAME, IS_NULLABLE, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, DATETIME_PRECISION FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='{table_name}' ORDER BY ORDINAL_POSITION""")
 
         fc = arcpy.management.CreateTable(out_database, out_name)
@@ -256,14 +101,13 @@ class download_table(object):
         arcpy.AddMessage(fields)
 
         select = f"SELECT"
-        top = f"TOP {row_count}" if limit else ""
         from_table = f"* FROM {table_name}"
 
         with arcpy.da.InsertCursor(fc, fields) as IC:
             for row in arcsnow.cursor.execute(" ".join([select, top, from_table])):
                 arcpy.AddMessage(row)
                 IC.insertRow(row)
-            
+        '''
 
     def _field_type(self, field):
         if field[2] == 'TEXT' or field[2] == 'GEOGRAPHY':
@@ -288,37 +132,7 @@ class download_table(object):
 
     def _field_nullable(self, field):
         return 'NULLABLE' if field[1] == 'YES' else 'NON_NULLABLE'
-
-            
-class drop_table(object):
-    def __init__(self):
-        """Define the tool (tool name is the name of the class)."""
-        self.label = "Drop Table"
-        self.description = "Drop a table in Snowflake"
-        self.canRunInBackground = False
-        self.category = "General"
         
-    def getParameterInfo(self):
-        """Define parameter definitions"""
-        table_name = arcpy.Parameter(
-            displayName="Table Name",
-            name="table_name",
-            datatype="GPString",
-            parameterType="Required",
-            direction="Input")
-
-        return [table_name]
-
-    def execute(self, parameters, messages):
-       if parameters[0].valueAsText:
-            arcsnow = ArcSnow()
-            arcsnow.login()
-
-            table_name = parameters[0].valueAsText
-            
-            arcsnow.cursor.execute(f'DROP TABLE {table_name}')
-            arcsnow.logout()
-
         
 class cvs_upload(object):
     def __init__(self):
@@ -363,6 +177,13 @@ class cvs_upload(object):
 
     def getParameterInfo(self):
         """Define parameter definitions"""
+        credentials = arcpy.Parameter(
+            displayName="Credentials File",
+            name="credentials",
+            datatype="DEFile",
+            parameterType="Required",
+            direction="Input")
+            
         input_csv_path = arcpy.Parameter(
             displayName="Input CSV",
             name="in_csv",
@@ -394,7 +215,7 @@ class cvs_upload(object):
         field_definitions.filters[1].type = 'ValueList'
         field_definitions.filters[1].list = ['VARCHAR', 'DOUBLE', 'INT', 'DATETIME']
         
-        params = [input_csv_path, output_table_name, field_definitions]
+        params = [credentials, input_csv_path, output_table_name, field_definitions]
         return params
 
     def isLicensed(self):
@@ -405,10 +226,10 @@ class cvs_upload(object):
         """Modify the values and properties of parameters before internal
         validation is performed.  This method is called whenever a parameter
         has been changed."""
-        if not parameters[0].hasBeenValidated and parameters[0].valueAsText:
-            parameters[1].value = os.path.splitext(os.path.basename(parameters[0].valueAsText))[0]
+        if not parameters[1].hasBeenValidated and parameters[1].valueAsText:
+            parameters[2].value = os.path.splitext(os.path.basename(parameters[1].valueAsText))[0]
             
-            df = pd.read_csv(parameters[0].valueAsText, engine='python', sep=',\s+', quoting=csv.QUOTE_ALL)
+            df = pd.read_csv(parameters[1].valueAsText, engine='python', sep=',\s+', quoting=csv.QUOTE_ALL)
             fields = []
             for i in range(len(df.columns)):
                 fields.append([
@@ -417,7 +238,7 @@ class cvs_upload(object):
                     255 if self._dtype_to_ftype(df.dtypes[i]) == "VARCHAR" else None, #field length
                     True, # nullable
                 ])
-            parameters[2].values = fields
+            parameters[3].values = fields
         return
 
     def updateMessages(self, parameters):
@@ -427,12 +248,12 @@ class cvs_upload(object):
 
     def execute(self, parameters, messages):
         """The source code of the tool."""
-        if parameters[0].valueAsText:
-            arcsnow = ArcSnow()
+        if parameters[1].valueAsText:
+            arcsnow = ArcSnow(parameters[0].valueAsText)
             arcsnow.login()
 
-            table_name = parameters[1].valueAsText
-            field_definitions = parameters[2].values
+            table_name = parameters[2].valueAsText
+            field_definitions = parameters[3].values
             field_names = [f[0] for f in field_definitions]
             arcsnow.cursor.execute(f"DROP TABLE IF EXISTS {table_name};")
                             
@@ -454,7 +275,7 @@ class cvs_upload(object):
             arcsnow.cursor.execute(f'GRANT ALL ON {table_name} TO ROLE ACCOUNTADMIN;')
             arcsnow.cursor.execute(f'GRANT SELECT ON {table_name} TO ROLE PUBLIC;')
             
-            df = pd.read_csv(parameters[0].valueAsText, engine='python', sep=',\s+', quoting=csv.QUOTE_ALL)
+            df = pd.read_csv(parameters[1].valueAsText, engine='python', sep=',\s+', quoting=csv.QUOTE_ALL)
 
             fields = ",".join(field_names)
             rows = []
