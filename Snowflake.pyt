@@ -3,13 +3,12 @@
 import os
 import sys
 
-from cryptography.fernet import Fernet
-import ctypes
 import arcpy
 import csv
 import pandas as pd
-import snowflake.connector
 
+from arcsnow import ArcSnow
+from credentials import Credentials
 
 class Toolbox(object):
     def __init__(self):
@@ -50,8 +49,12 @@ class test_credentials(object):
     def execute(self, parameters, messages):
         parameters[1].value = False
         
+        arcpy.AddMessage("Here")
         arcsnow = ArcSnow(parameters[0].valueAsText)
+        arcpy.AddMessage("Here")
+        
         arcsnow.login()
+        arcpy.AddMessage("Here")
         
         parameters[1].value = True
         
@@ -477,155 +480,3 @@ class cvs_upload(object):
             
         return
 
-
-class ArcSnow(object):
-    def __init__(self, path):
-        self._credentials = Credentials(path)
-        self._conn = None
-        
-    def login(self):
-        self._conn = snowflake.connector.connect(
-            user=self._credentials.username,
-            password=self._credentials.rawpass,
-            account=self._credentials.account,
-            warehouse=self._credentials.warehouse,
-            database=self._credentials.database,
-            schema=self._credentials.schema
-            )
-        
-        arcpy.AddMessage("Connection successful")
-        
-        self._conn.cursor().execute("USE ROLE ACCOUNTADMIN;")       
-        self._conn.cursor().execute(f"USE WAREHOUSE {self._credentials.warehouse};")
-        self._conn.cursor().execute(f"USE SCHEMA  {self._credentials.schema};")
-        self._conn.cursor().execute(f"USE DATABASE {self._credentials.database}")
-        
-        arcpy.AddMessage("\n")
-        arcpy.AddMessage("Current configuration")
-        arcpy.AddMessage(f"  Role: ACCOUNTADMIN")
-        arcpy.AddMessage(f"  Warehouse: {self._credentials.warehouse}")
-        arcpy.AddMessage(f"  Database: {self._credentials.database}")
-        arcpy.AddMessage(f"  Schema: {self._credentials.schema}")
-    
-    def logout(self):
-        self._conn.cursor().close()
-        self._conn.close()
-        
-    def schema(self, table_name):
-        results = self._conn.cursor().execute("""SELECT COLUMN_NAME, IS_NULLABLE, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION \
-        FROM INFORMATION_SCHEMA.COLUMNS\
-        WHERE TABLE_NAME='{}'""".format(table_name))
-        for r in results:
-            print(r)
-        
-    @property
-    def conn(self):
-        return self._conn
-    
-    @property
-    def cursor(self):
-        return self._conn.cursor()
-
-
-class Credentials(object):
-    def __init__(self, path=None):
-        self.__key_file = 'key.key'
-        self.__key = ""
-        self.__cred_file = "CredentialsFile.ini"
-        self.location = "./"
-        
-        if path and self.__read_from_path(path):
-            return
-                
-        #Stored within the Credential File
-        self.username = ""
-        self.__password = ""
-        self.account = ""
-        self.warehouse = ""
-        self.database = ""
-        self.schema = ""
-        #File names and decyrption key
-
-
-    @property
-    def password(self):
-        return self.__password
-
-    @password.setter
-    def password(self, password):
-        self.__key = Fernet.generate_key()
-        f = Fernet(self.__key)
-        self.__password = f.encrypt(password.encode()).decode()
-        del f
-        
-    @property
-    def rawpass(self):
-        f = Fernet(self.__key)
-        decrypted = f.decrypt(self.__password.encode()).decode()
-        del f
-        
-        return decrypted
-        
-    @property
-    def path(self):
-        return os.path.join(self.location, self.__cred_file)
-
-    def create_cred(self):
-        cred_filename = os.path.join(self.location, self.__cred_file)
-        key_filename = os.path.join(self.location, self.__key_file)
-
-        with open(cred_filename, 'w') as file_in:
-            file_in.write(f"#Credential File:\nUsername={self.username}\nPassword={self.__password}\nAccount={self.account}\nWarehouse={self.warehouse}\nDatabase={self.database}\nSchema={self.schema}")
-
-        if(os.path.exists(key_filename)):
-            os.remove(key_filename)
-
-        try:
-            os_type = sys.platform
-            with open(key_filename, 'w') as key_in:
-                key_in.write(self.__key.decode())
-                if(os_type == 'win32'):
-                    ctypes.windll.kernel32.SetFileAttributesW(self.__key_file, 2)
-
-        except PermissionError:
-            os.remove(key_filename)
-            arcpy.AddMessage("A Permission Error occurred.\n Please re run the script")
-
-    def __read_from_path(self, path):
-        try:
-            cred_filename = path
-
-            #The key file to decrypt password
-            key_file = os.path.join(os.path.dirname(cred_filename), self.__key_file) 
-
-            self.__key = ''
-            with open(key_file, 'r') as key_in:
-                    self.__key = key_in.read().encode()
-
-            #Sets the value of decrpytion key    
-            f = Fernet(self.__key)
-
-            #Loops through each line of file to populate a dictionary from tuples in the form of key=value
-            with open(cred_filename, 'r') as cred_in:
-                lines = cred_in.readlines()
-                config = {}
-                for line in lines:
-                    tuples = line.rstrip('\n').split('=',1)
-                    if tuples[0] in ('Username', 'Password', 'Account', 'Warehouse', 'Database', 'Schema'):
-                        config[tuples[0]] = tuples[1]
-
-                #Password decryption
-                passwd = f.decrypt(config['Password'].encode()).decode()
-                config['Password'] = passwd
-                
-                self.username = config['Username']
-                self.password = config['Password']
-                self.account = config['Account']
-                self.warehouse = config['Warehouse']
-                self.database = config['Database']
-                self.schema = config['Schema']
-            return True
-            
-        except:
-            return False
-        
