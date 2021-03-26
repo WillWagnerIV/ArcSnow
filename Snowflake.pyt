@@ -81,10 +81,27 @@ class download_query(object):
 
         arcpy.AddMessage(sql_query)
         results = arcsnow.dict_cursor.execute(sql_query)
-        results.fetchone()
-        for rec in results:
-            arcpy.AddMessage(rec)
+        first = results.fetchone()
+        file_name = 'test.csv'
+        
+        with open(file_name, 'w', newline='') as csvfile:
+            fields = list(first.keys())
+            arcpy.AddMessage(fields)
+            arcpy.AddMessage(first)
+            writer = csv.DictWriter(csvfile, fieldnames=fields)
+            writer.writeheader()
+            writer.writerow(first)
             
+            for record in results:
+                writer.writerow(record)
+                arcpy.AddMessage(record)
+        
+        arcpy.AddMessage(file_name)
+        arcpy.AddMessage(out_database)
+        arcpy.AddMessage(out_name)
+        
+        arcpy.conversion.TableToTable(file_name, out_database, out_name)
+        
         '''
         columns = arcsnow.cursor.execute(f"""SELECT COLUMN_NAME, IS_NULLABLE, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, DATETIME_PRECISION FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='{table_name}' ORDER BY ORDINAL_POSITION""")
 
