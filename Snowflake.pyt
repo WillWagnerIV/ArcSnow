@@ -61,8 +61,15 @@ class download_query(object):
             datatype="GPString",
             parameterType="Required",
             direction="Input")
+            
+        out_table = arcpy.Parameter(
+            displayName="Output Table",
+            name="out_table",
+            datatype="DETable",
+            parameterType="Derived",
+            direction="Output")
         
-        return [credentials, sql_query, out_database, out_name]
+        return [credentials, sql_query, out_database, out_name, out_table]
     
     def updateParameters(self, parameters):
         """Modify the values and properties of parameters before internal
@@ -87,44 +94,16 @@ class download_query(object):
         with open(file_name, 'w', newline='') as csvfile:
             fields = list(first.keys())
             arcpy.AddMessage(fields)
-            arcpy.AddMessage(first)
             writer = csv.DictWriter(csvfile, fieldnames=fields)
             writer.writeheader()
             writer.writerow(first)
             
             for record in results:
                 writer.writerow(record)
-                arcpy.AddMessage(record)
         
-        arcpy.AddMessage(file_name)
-        arcpy.AddMessage(out_database)
-        arcpy.AddMessage(out_name)
+        arcpy.AddMessage("Converting CSV to database table")
+        parameters[4].value = arcpy.conversion.TableToTable(file_name, out_database, out_name)
         
-        arcpy.conversion.TableToTable(file_name, out_database, out_name)
-        
-        '''
-        columns = arcsnow.cursor.execute(f"""SELECT COLUMN_NAME, IS_NULLABLE, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, DATETIME_PRECISION FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='{table_name}' ORDER BY ORDINAL_POSITION""")
-
-        fc = arcpy.management.CreateTable(out_database, out_name)
-        for field in columns:
-            arcpy.management.AddField(
-                fc, 
-                self._field_name(field), 
-                self._field_type(field), 
-                field_length = self._field_length(field), 
-                field_is_nullable = self._field_nullable(field))
-
-        fields = [f.name for f in arcpy.ListFields(fc) if not f.name == arcpy.Describe(fc).OIDFieldName]
-        arcpy.AddMessage(fields)
-
-        select = f"SELECT"
-        from_table = f"* FROM {table_name}"
-
-        with arcpy.da.InsertCursor(fc, fields) as IC:
-            for row in arcsnow.cursor.execute(" ".join([select, top, from_table])):
-                arcpy.AddMessage(row)
-                IC.insertRow(row)
-        '''
 
     def _field_type(self, field):
         if field[2] == 'TEXT' or field[2] == 'GEOGRAPHY':

@@ -2,6 +2,7 @@
 *
 
 !*.pyt
+!*.py
 !.gitignore
 !.gitattributes
 
