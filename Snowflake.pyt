@@ -9,6 +9,7 @@ import pandas as pd
 
 from arcsnow import ArcSnow
 from credentials import *
+import credentials
 
 
 class Toolbox(object):
@@ -19,7 +20,7 @@ class Toolbox(object):
         self.alias = "snowflake_toolbox"
 
         # List of tool classes associated with this toolbox
-        self.tools = [test_credentials, cvs_upload, download_query, generate_credentials]
+        self.tools = [credentials.test_credentials, cvs_upload, download_query, credentials.generate_credentials]
 
 class download_query(object):
     def __init__(self):
