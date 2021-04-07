@@ -11,7 +11,7 @@ from arcsnow import test_credentials
 from credentials import generate_credentials
 
 import credentials
-import arcsnow
+import arcsnow as asn
 
 
 class Toolbox(object):
@@ -140,19 +140,14 @@ class feature_class_upload(object):
         self.description = "Upload a Feature Class as a table to Snowflake"
         self.canRunInBackground = False
         self.category = "ETL"
-
-    def _dtype_to_ftype(self, s):
-        lookup = {
-            "float":"DOUBLE",
-            "float64":"DOUBLE",
-            "int":"INT",
-            "int64":"INT",
-            "string":"VARCHAR",
-            "object":"VARCHAR",
-            "datetime":"DATETIME"            
+        self._field_lookup = {
+            "Double":"DOUBLE",
+            "Single":"DOUBLE",
+            "SmallInteger":"INT",
+            "String":"VARCHAR",
+            "Date":"DATETIME",
+            "Geometry":"GEOGRAPHY"
         }
-
-        return lookup[str(s)]
 
     def _fix_field_name(self, s):
         s = s.strip()
@@ -183,10 +178,10 @@ class feature_class_upload(object):
             parameterType="Required",
             direction="Input")
         
-        in_fc = arcpy.Parameter(
-            displayName="Input Feature Class",
+        in_fl = arcpy.Parameter(
+            displayName="Input Feature Layer",
             name="in_csv",
-            datatype="DEFeatureClass",
+            datatype="GPFeatureLayer",
             parameterType="Required",
             direction="Input")
         
@@ -204,7 +199,7 @@ class feature_class_upload(object):
             parameterType="Derived",
             direction="Output")
         
-        params = [credentials, in_fc, table_name, out_table_name]
+        params = [credentials, in_fl, table_name, out_table_name]
         return params
     
     def isLicensed(self):
@@ -215,7 +210,12 @@ class feature_class_upload(object):
         """Modify the values and properties of parameters before internal
         validation is performed.  This method is called whenever a parameter
         has been changed."""
+        if not parameters[1].hasBeenValidated and parameters[1].valueAsText:
+            parameters[2].value = os.path.splitext(os.path.basename(parameters[1].valueAsText))[0]
+            parameters[2].value = parameters[2].value.replace(" ", "_")
+            
         return
+
 
     def updateMessages(self, parameters):
         """Modify the messages created by internal validation for each tool
@@ -224,57 +224,53 @@ class feature_class_upload(object):
 
     def execute(self, parameters, messages):
         """The source code of the tool."""
-        arcsnow = arcsnow.ArcSnow(parameters[0].valueAsText)
+        arcsnow = asn.ArcSnow(parameters[0].valueAsText)
         arcsnow.login()
 
         in_fc = parameters[1].value
         table_name = parameters[2].valueAsText
         
         arcsnow.cursor.execute(f"DROP TABLE IF EXISTS {table_name};")
-                        
-        fields = []
-        for field in field_definitions:
-            field_name = field[0]
-            field_type = field[1]
-            if field_type == "VARCHAR":
-                field_type += f'({field[2]})'
-
-            fields.append(f'{field_name} {field_type}')
-            
-        fields = ",".join(fields)
-
-        create_table = f"CREATE TABLE {table_name} ({fields});"
+        
+        fields = [x for x in arcpy.ListFields(in_fc) if x.type in self._field_lookup.keys()]
+        
+        sql_fields = ",".join([f"{x.name} {self._field_lookup[x.type]}" for x in fields])
+        
+        create_table = f"CREATE TABLE {table_name} ({sql_fields});"
         arcpy.AddMessage(create_table)
 
         arcsnow.cursor.execute(create_table)
         arcsnow.cursor.execute(f'GRANT ALL ON {table_name} TO ROLE ACCOUNTADMIN;')
         arcsnow.cursor.execute(f'GRANT SELECT ON {table_name} TO ROLE PUBLIC;')
         
-        df = pd.read_csv(parameters[1].valueAsText, engine='python', sep=',\s+', quoting=csv.QUOTE_ALL)
-
-        fields = ",".join(field_names)
+        field_names = [f.name for f in fields if not f.type == "Geometry"] + ["SHAPE@"]
+        arcpy.AddMessage(field_names)
+        
         rows = []
-        for index, row in df.iterrows():
-            data = []
-            for index, c_name in enumerate(df):
-                value = row[c_name]
-                if field_definitions[index][1] == "VARCHAR":
-                    data.append(f"'{value}'")
-                else:
-                    data.append(str(value))
+        with arcpy.da.SearchCursor(in_fc, field_names) as SC:
+            for row in SC:
+                arcpy.AddMessage(row)
+        # for index, row in df.iterrows():
+            # data = []
+            # for index, c_name in enumerate(df):
+                # value = row[c_name]
+                # if field_definitions[index][1] == "VARCHAR":
+                    # data.append(f"'{value}'")
+                # else:
+                    # data.append(str(value))
 
-            rows.append(",".join(data))
+            # rows.append(",".join(data))
 
-        values = ','.join([f'({x})' for x in rows])
+        # values = ','.join([f'({x})' for x in rows])
         
-        insert_values = f'INSERT INTO {table_name} ({fields}) VALUES {values};'
+        # insert_values = f'INSERT INTO {table_name} ({fields}) VALUES {values};'
         
-        arcpy.AddMessage(insert_values)
+        # arcpy.AddMessage(insert_values)
 
-        arcsnow.cursor.execute(insert_values)
+        # arcsnow.cursor.execute(insert_values)
         arcsnow.logout()
         
-        parameters[4].value = table_name
+        parameters[3].value = table_name
         
         return
 
@@ -400,7 +396,7 @@ class cvs_upload(object):
 
     def execute(self, parameters, messages):
         """The source code of the tool."""
-        arcsnow = arcsnow.ArcSnow(parameters[0].valueAsText)
+        arcsnow = asn.ArcSnow(parameters[0].valueAsText)
         arcsnow.login()
 
         table_name = parameters[2].valueAsText
