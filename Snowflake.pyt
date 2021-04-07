@@ -7,9 +7,11 @@ import arcpy
 import csv
 import pandas as pd
 
-from arcsnow import ArcSnow
-from credentials import *
+from arcsnow import test_credentials
+from credentials import generate_credentials
+
 import credentials
+import arcsnow
 
 
 class Toolbox(object):
@@ -20,7 +22,7 @@ class Toolbox(object):
         self.alias = "snowflake_toolbox"
 
         # List of tool classes associated with this toolbox
-        self.tools = [credentials.test_credentials, cvs_upload, download_query, credentials.generate_credentials]
+        self.tools = [test_credentials, cvs_upload, feature_class_upload, download_query, generate_credentials]
 
 class download_query(object):
     def __init__(self):
@@ -84,7 +86,7 @@ class download_query(object):
         out_database = parameters[2].valueAsText
         out_name = parameters[3].valueAsText
         
-        arcsnow = ArcSnow(parameters[0].valueAsText)
+        arcsnow = arcsnow.ArcSnow(parameters[0].valueAsText)
         arcsnow.login()
 
         arcpy.AddMessage(sql_query)
@@ -130,7 +132,153 @@ class download_query(object):
     def _field_nullable(self, field):
         return 'NULLABLE' if field[1] == 'YES' else 'NON_NULLABLE'
         
+
+class feature_class_upload(object):
+    def __init__(self):
+        """Define the tool (tool name is the name of the class)."""
+        self.label = "Upload Feature Class"
+        self.description = "Upload a Feature Class as a table to Snowflake"
+        self.canRunInBackground = False
+        self.category = "ETL"
+
+    def _dtype_to_ftype(self, s):
+        lookup = {
+            "float":"DOUBLE",
+            "float64":"DOUBLE",
+            "int":"INT",
+            "int64":"INT",
+            "string":"VARCHAR",
+            "object":"VARCHAR",
+            "datetime":"DATETIME"            
+        }
+
+        return lookup[str(s)]
+
+    def _fix_field_name(self, s):
+        s = s.strip()
         
+        for c in "()+~`-;:'><?/\\|\" ^":
+            s = s.replace(c, "_")
+
+        while "__" in s:
+            s = s.replace("__", "_")
+
+        if s[0] == "_":
+            s = s[1:]
+
+        if not s[0].isalpha():
+            s = "t" + s
+
+        if s[-1] == "_":
+            s = s[:-1]
+            
+        return s
+
+    def getParameterInfo(self):
+        """Define parameter definitions"""
+        credentials = arcpy.Parameter(
+            displayName="Credentials File",
+            name="credentials",
+            datatype="DEFile",
+            parameterType="Required",
+            direction="Input")
+        
+        in_fc = arcpy.Parameter(
+            displayName="Input Feature Class",
+            name="in_csv",
+            datatype="DEFeatureClass",
+            parameterType="Required",
+            direction="Input")
+        
+        table_name = arcpy.Parameter(
+            displayName="Table Name",
+            name="table_name",
+            datatype="GPString",
+            parameterType="Required",
+            direction="Input")
+            
+        out_table_name = arcpy.Parameter(
+            displayName="Output Table Name",
+            name="out_table_name",
+            datatype="GPString",
+            parameterType="Derived",
+            direction="Output")
+        
+        params = [credentials, in_fc, table_name, out_table_name]
+        return params
+    
+    def isLicensed(self):
+        """Set whether tool is licensed to execute."""
+        return True
+
+    def updateParameters(self, parameters):
+        """Modify the values and properties of parameters before internal
+        validation is performed.  This method is called whenever a parameter
+        has been changed."""
+        return
+
+    def updateMessages(self, parameters):
+        """Modify the messages created by internal validation for each tool
+        parameter.  This method is called after internal validation."""
+        return
+
+    def execute(self, parameters, messages):
+        """The source code of the tool."""
+        arcsnow = arcsnow.ArcSnow(parameters[0].valueAsText)
+        arcsnow.login()
+
+        in_fc = parameters[1].value
+        table_name = parameters[2].valueAsText
+        
+        arcsnow.cursor.execute(f"DROP TABLE IF EXISTS {table_name};")
+                        
+        fields = []
+        for field in field_definitions:
+            field_name = field[0]
+            field_type = field[1]
+            if field_type == "VARCHAR":
+                field_type += f'({field[2]})'
+
+            fields.append(f'{field_name} {field_type}')
+            
+        fields = ",".join(fields)
+
+        create_table = f"CREATE TABLE {table_name} ({fields});"
+        arcpy.AddMessage(create_table)
+
+        arcsnow.cursor.execute(create_table)
+        arcsnow.cursor.execute(f'GRANT ALL ON {table_name} TO ROLE ACCOUNTADMIN;')
+        arcsnow.cursor.execute(f'GRANT SELECT ON {table_name} TO ROLE PUBLIC;')
+        
+        df = pd.read_csv(parameters[1].valueAsText, engine='python', sep=',\s+', quoting=csv.QUOTE_ALL)
+
+        fields = ",".join(field_names)
+        rows = []
+        for index, row in df.iterrows():
+            data = []
+            for index, c_name in enumerate(df):
+                value = row[c_name]
+                if field_definitions[index][1] == "VARCHAR":
+                    data.append(f"'{value}'")
+                else:
+                    data.append(str(value))
+
+            rows.append(",".join(data))
+
+        values = ','.join([f'({x})' for x in rows])
+        
+        insert_values = f'INSERT INTO {table_name} ({fields}) VALUES {values};'
+        
+        arcpy.AddMessage(insert_values)
+
+        arcsnow.cursor.execute(insert_values)
+        arcsnow.logout()
+        
+        parameters[4].value = table_name
+        
+        return
+
+
 class cvs_upload(object):
     def __init__(self):
         """Define the tool (tool name is the name of the class)."""
@@ -188,7 +336,7 @@ class cvs_upload(object):
             parameterType="Required",
             direction="Input")
         
-        output_table_name = arcpy.Parameter(
+        table_name = arcpy.Parameter(
             displayName="Table Name",
             name="table_name",
             datatype="GPString",
@@ -202,17 +350,24 @@ class cvs_upload(object):
             parameterType="Optional",
             direction="Input")
 
-
         field_definitions.columns = [
             ['GPString', 'Name'],
             ['GPString', 'Type'],
             ['GPLong', 'Length'],
             ['GPBoolean', 'Nullable']
         ]
+        
         field_definitions.filters[1].type = 'ValueList'
         field_definitions.filters[1].list = ['VARCHAR', 'DOUBLE', 'INT', 'DATETIME']
+               
+        out_table_name = arcpy.Parameter(
+            displayName="Output Table Name",
+            name="out_table_name",
+            datatype="GPString",
+            parameterType="Derived",
+            direction="Output")
         
-        params = [credentials, input_csv_path, output_table_name, field_definitions]
+        params = [credentials, input_csv_path, table_name, field_definitions, out_table_name]
         return params
 
     def isLicensed(self):
@@ -245,56 +400,57 @@ class cvs_upload(object):
 
     def execute(self, parameters, messages):
         """The source code of the tool."""
-        if parameters[1].valueAsText:
-            arcsnow = ArcSnow(parameters[0].valueAsText)
-            arcsnow.login()
+        arcsnow = arcsnow.ArcSnow(parameters[0].valueAsText)
+        arcsnow.login()
 
-            table_name = parameters[2].valueAsText
-            field_definitions = parameters[3].values
-            field_names = [f[0] for f in field_definitions]
-            arcsnow.cursor.execute(f"DROP TABLE IF EXISTS {table_name};")
-                            
-            fields = []
-            for field in field_definitions:
-                field_name = field[0]
-                field_type = field[1]
-                if field_type == "VARCHAR":
-                    field_type += f'({field[2]})'
+        table_name = parameters[2].valueAsText
+        field_definitions = parameters[3].values
+        field_names = [f[0] for f in field_definitions]
+        arcsnow.cursor.execute(f"DROP TABLE IF EXISTS {table_name};")
+                        
+        fields = []
+        for field in field_definitions:
+            field_name = field[0]
+            field_type = field[1]
+            if field_type == "VARCHAR":
+                field_type += f'({field[2]})'
 
-                fields.append(f'{field_name} {field_type}')
-                
-            fields = ",".join(fields)
-
-            create_table = f"CREATE TABLE {table_name} ({fields});"
-            arcpy.AddMessage(create_table)
-
-            arcsnow.cursor.execute(create_table)
-            arcsnow.cursor.execute(f'GRANT ALL ON {table_name} TO ROLE ACCOUNTADMIN;')
-            arcsnow.cursor.execute(f'GRANT SELECT ON {table_name} TO ROLE PUBLIC;')
+            fields.append(f'{field_name} {field_type}')
             
-            df = pd.read_csv(parameters[1].valueAsText, engine='python', sep=',\s+', quoting=csv.QUOTE_ALL)
+        fields = ",".join(fields)
 
-            fields = ",".join(field_names)
-            rows = []
-            for index, row in df.iterrows():
-                data = []
-                for index, c_name in enumerate(df):
-                    value = row[c_name]
-                    if field_definitions[index][1] == "VARCHAR":
-                        data.append(f"'{value}'")
-                    else:
-                        data.append(str(value))
+        create_table = f"CREATE TABLE {table_name} ({fields});"
+        arcpy.AddMessage(create_table)
 
-                rows.append(",".join(data))
+        arcsnow.cursor.execute(create_table)
+        arcsnow.cursor.execute(f'GRANT ALL ON {table_name} TO ROLE ACCOUNTADMIN;')
+        arcsnow.cursor.execute(f'GRANT SELECT ON {table_name} TO ROLE PUBLIC;')
+        
+        df = pd.read_csv(parameters[1].valueAsText, engine='python', sep=',\s+', quoting=csv.QUOTE_ALL)
 
-            values = ','.join([f'({x})' for x in rows])
-            
-            insert_values = f'INSERT INTO {table_name} ({fields}) VALUES {values};'
-            
-            arcpy.AddMessage(insert_values)
+        fields = ",".join(field_names)
+        rows = []
+        for index, row in df.iterrows():
+            data = []
+            for index, c_name in enumerate(df):
+                value = row[c_name]
+                if field_definitions[index][1] == "VARCHAR":
+                    data.append(f"'{value}'")
+                else:
+                    data.append(str(value))
 
-            arcsnow.cursor.execute(insert_values)
-            arcsnow.logout()
+            rows.append(",".join(data))
+
+        values = ','.join([f'({x})' for x in rows])
+        
+        insert_values = f'INSERT INTO {table_name} ({fields}) VALUES {values};'
+        
+        arcpy.AddMessage(insert_values)
+
+        arcsnow.cursor.execute(insert_values)
+        arcsnow.logout()
+        
+        parameters[4].value = table_name
             
         return
 

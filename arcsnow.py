@@ -57,6 +57,41 @@ class ArcSnow(object):
     def dict_cursor(self):
         return self._conn.cursor(snowflake.connector.DictCursor)
         
+
+class test_credentials(object):
+    def __init__(self):
+        """Define the tool (tool name is the name of the class)."""
+        self.label = "Test Credentials"
+        self.description = "Test a Snowflake credential"
+        self.canRunInBackground = False
+        self.category = "Preparation"
+        
+    def getParameterInfo(self):
+        """Define parameter definitions"""
+        credentials = arcpy.Parameter(
+            displayName="Credentials File",
+            name="credentials",
+            datatype="DEFile",
+            parameterType="Required",
+            direction="Input")
+        
+        valid = arcpy.Parameter(
+            displayName="Is Valid",
+            name="valid",
+            datatype="GPBoolean",
+            parameterType="Derived",
+            direction="Output")
+        
+        return [credentials, valid]
+        
+    def execute(self, parameters, messages):
+        parameters[1].value = False
+        
+        arcsnow = ArcSnow(parameters[0].valueAsText)
+        arcsnow.login()
+        
+        parameters[1].value = True
+        
 if __name__ == "__main__":
     arcsnow = ArcSnow("CredentialsFile.ini")
     arcsnow.login()
