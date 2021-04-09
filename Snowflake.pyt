@@ -86,7 +86,7 @@ class download_query(object):
         out_database = parameters[2].valueAsText
         out_name = parameters[3].valueAsText
         
-        arcsnow = arcsnow.ArcSnow(parameters[0].valueAsText)
+        arcsnow = asn.ArcSnow(parameters[0].valueAsText)
         arcsnow.login()
 
         arcpy.AddMessage(sql_query)
