@@ -10,6 +10,8 @@ import pandas as pd
 from arcsnow import test_credentials
 from credentials import generate_credentials
 from etl import csv_upload
+from etl import create_table
+from etl import download_query
 
 import credentials
 import arcsnow as asn
@@ -23,24 +25,26 @@ class Toolbox(object):
         self.alias = "snowflake_toolbox"
 
         # List of tool classes associated with this toolbox
-        self.tools = [test_credentials, create_table, csv_upload, feature_class_upload, download_query, generate_credentials]
-
-class create_table(object):
+        self.tools = [
+            test_credentials, 
+            create_table, 
+            csv_upload, 
+            feature_class_upload, 
+            download_query, 
+            generate_credentials,
+            insert_into
+        ]
+        
+class insert_into(object):
     def __init__(self):
-        self.label = "Create Table"
-        self.description = "Convert a Snowflake table from a DETable"
+        """Define the tool (tool name is the name of the class)."""
+        self.label = "Insert Into"
+        self.description = "Insert rows into a table inside of Snowflake"
         self.canRunInBackground = False
         self.category = "Snowflake"
-        self._field_lookup = {
-            "Double":"DOUBLE",
-            "Single":"DOUBLE",
-            "SmallInteger":"INT",
-            "String":"VARCHAR",
-            "Date":"DATETIME",
-            "Geometry":"GEOGRAPHY"
-        }
-        
+    
     def getParameterInfo(self):
+        """Define parameter definitions"""
         credentials = arcpy.Parameter(
             displayName="Credentials File",
             name="credentials",
@@ -49,52 +53,41 @@ class create_table(object):
             direction="Input")
             
         in_table = arcpy.Parameter(
-            displayName="Input Table",
+            displayName="Input Feature Layer",
             name="in_table",
-            datatype="DETable",
+            datatype="GPFeatureLayer",
             parameterType="Required",
             direction="Input")
-
-        out_name = arcpy.Parameter(
-            displayName="Output Name",
-            name="out_name",
+            
+        target_table = arcpy.Parameter(
+            displayName="Target Table Name",
+            name="target_table_name",
             datatype="GPString",
             parameterType="Required",
             direction="Input")
-            
-        out_table = arcpy.Parameter(
-            displayName="Output Table",
-            name="out_table",
-            datatype="DETable",
+        
+        out_table_name = arcpy.Parameter(
+            displayName="Output Table Name",
+            name="out_table_name",
+            datatype="GPString",
             parameterType="Derived",
             direction="Output")
             
-        return [credentials, in_table, out_name, out_table]
-        
-    def _fix_field_name(self, s):
-        s = s.strip()
-        
-        for c in "()+~`-;:'><?/\\|\" ^":
-            s = s.replace(c, "_")
-
-        while "__" in s:
-            s = s.replace("__", "_")
-
-        if s[0] == "_":
-            s = s[1:]
-
-        if not s[0].isalpha():
-            s = "t" + s
-
-        if s[-1] == "_":
-            s = s[:-1]
+        return [credentials, in_table, target_table, out_table_name]
             
-        return s
-        
     def updateParameters(self, parameters):
         return
         
-    
+    def _flush_batch(self, cursor, data, table_name):
+        
+        arcpy.AddMessage(data[0])
+        data = ','.join([f'({x})' for x in data])
+        
+        
+        insert_values = f'INSERT INTO {table_name} VALUES {data};'
+        cursor.execute(insert_values)
+        pass
+        
     def execute(self, parameters, messages):
         arcsnow = asn.ArcSnow(parameters[0].valueAsText)
         arcsnow.login()
@@ -102,128 +95,34 @@ class create_table(object):
         in_table = parameters[1].value
         table_name = parameters[2].valueAsText
         
-        arcsnow.cursor.execute(f"DROP TABLE IF EXISTS {table_name};")
+        fields = [x for x in arcpy.ListFields(in_table) if not x.name == arcpy.Describe(in_table).OIDFieldName]
         
-        fields = [x for x in arcpy.ListFields(in_table) if x.type in self._field_lookup.keys()]
+        arcpy.AddMessage([x.name if not x.type == 'Geometry' else "SHAPE@" for x in fields])
         
-        sql_fields = ",".join([f"{x.name} {self._field_lookup[x.type]}" for x in fields])
-        
-        create_table = f"CREATE TABLE {table_name} ({sql_fields});"
-        arcpy.AddMessage(create_table)
-
-        arcsnow.cursor.execute(create_table)
-        arcsnow.cursor.execute(f'GRANT ALL ON {table_name} TO ROLE ACCOUNTADMIN;')
-        arcsnow.cursor.execute(f'GRANT SELECT ON {table_name} TO ROLE PUBLIC;')
-    
-class download_query(object):
-    def __init__(self):
-        """Define the tool (tool name is the name of the class)."""
-        self.label = "Download Query"
-        self.description = "Convert a Snowflake query to a GDB table"
-        self.canRunInBackground = False
-        self.category = "ETL"
-
-    def getParameterInfo(self):
-        """Define parameter definitions"""
-                   
-        credentials = arcpy.Parameter(
-            displayName="Credentials File",
-            name="credentials",
-            datatype="DEFile",
-            parameterType="Required",
-            direction="Input")
-        
-        sql_query = arcpy.Parameter(
-            displayName="SQL Query",
-            name="sql_query",
-            datatype="GPSQLExpression",
-            parameterType="Required",
-            direction="Input")
-
-        out_database = arcpy.Parameter(
-            displayName="Target Database",
-            name="out_database",
-            datatype="DEWorkspace",
-            parameterType="Required",
-            direction="Input")
-
-        out_database.value = arcpy.env.workspace
-
-        out_name = arcpy.Parameter(
-            displayName="Output Name",
-            name="out_name",
-            datatype="GPString",
-            parameterType="Required",
-            direction="Input")
+        with arcpy.da.SearchCursor(in_table, [x.name if not x.type == 'Geometry' else "SHAPE@" for x in fields]) as SC:
+            max_batch = 1000
+            values = []
             
-        out_table = arcpy.Parameter(
-            displayName="Output Table",
-            name="out_table",
-            datatype="DETable",
-            parameterType="Derived",
-            direction="Output")
-        
-        return [credentials, sql_query, out_database, out_name, out_table]
-    
-    def updateParameters(self, parameters):
-        """Modify the values and properties of parameters before internal
-        validation is performed.  This method is called whenever a parameter
-        has been changed."""
-        
-        return
-
-    def execute(self, parameters, messages):
-        sql_query = parameters[1].valueAsText
-        out_database = parameters[2].valueAsText
-        out_name = parameters[3].valueAsText
-        
-        arcsnow = asn.ArcSnow(parameters[0].valueAsText)
-        arcsnow.login()
-
-        arcpy.AddMessage(sql_query)
-        results = arcsnow.dict_cursor.execute(sql_query)
-        first = results.fetchone()
-        file_name = 'test.csv'
-        
-        with open(file_name, 'w', newline='') as csvfile:
-            fields = list(first.keys())
-            arcpy.AddMessage(fields)
-            writer = csv.DictWriter(csvfile, fieldnames=fields)
-            writer.writeheader()
-            writer.writerow(first)
+            for row in SC:
+                data = []
+                for index, col in enumerate(row):
+                    if fields[index].type == 'Geometry':
+                        data.append(f"'{col.WKT}'")
+                    else:
+                        data.append(str(col))
+                    
+                values.append(",".join(data))
+                
+                if len(values) == max_batch:
+                    self._flush_batch(arcsnow.cursor, values, table_name)
+                    values = []
+                    
             
-            for record in results:
-                writer.writerow(record)
+            if len(values):
+               self._flush_batch(arcsnow.cursor, values, table_name)
         
-        arcpy.AddMessage("Converting CSV to database table")
-        parameters[4].value = arcpy.conversion.TableToTable(file_name, out_database, out_name)
-        
-
-    def _field_type(self, field):
-        if field[2] == 'TEXT' or field[2] == 'GEOGRAPHY':
-            return 'TEXT'
-        elif field[2] == 'NUMBER' and field[4] is not None:
-            return 'DOUBLE'
-        elif field[2] == "FLOAT":
-            return 'FLOAT'
-        elif field[2] == "BOOLEAN":
-            return 'SHORT'
-        else:
-            return 'LONG'
-            
-    def _field_length(self, field):
-        if field[2] == 'TEXT':
-            return field[3]
-        else:
-            return 0
-        
-    def _field_name(self, field):
-        return field[0]
-
-    def _field_nullable(self, field):
-        return 'NULLABLE' if field[1] == 'YES' else 'NON_NULLABLE'
-        
-
+        parameters[3].value = parameters[2].valueAsText
+         
 class feature_class_upload(object):
     def __init__(self):
         """Define the tool (tool name is the name of the class)."""
