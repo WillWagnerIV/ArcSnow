@@ -106,8 +106,12 @@ class insert_into(object):
             for row in SC:
                 data = []
                 for index, col in enumerate(row):
-                    if fields[index].type == 'Geometry':
+                    if col == None:
+                        data.append("NULL")
+                    elif fields[index].type == 'Geometry':
                         data.append(f"'{col.WKT}'")
+                    elif fields[index].type == 'String' or fields[index].type == 'Date':
+                        data.append(f"'{col}'")
                     else:
                         data.append(str(col))
                     
