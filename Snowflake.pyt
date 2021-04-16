@@ -12,6 +12,7 @@ from credentials import generate_credentials
 from etl import csv_upload
 from etl import create_table
 from etl import download_query
+from update_column_comment import update_comment
 
 import credentials
 import arcsnow as asn
@@ -32,7 +33,8 @@ class Toolbox(object):
             feature_class_upload, 
             download_query, 
             generate_credentials,
-            insert_into
+            insert_into,
+            update_comment
         ]
         
 class insert_into(object):
