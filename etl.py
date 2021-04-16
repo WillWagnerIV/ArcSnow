@@ -5,6 +5,7 @@ import csv
 import arcpy
 import arcsnow as asn
 import pandas as pd
+import tempfile
 
 class download_query(object):
     def __init__(self):
@@ -74,7 +75,7 @@ class download_query(object):
         arcpy.AddMessage(sql_query)
         results = arcsnow.dict_cursor.execute(sql_query)
         first = results.fetchone()
-        file_name = 'test.csv'
+        file_name = os.path.join(tempfile.gettempdir(), 'test.csv')
         
         with open(file_name, 'w', newline='') as csvfile:
             fields = list(first.keys())
