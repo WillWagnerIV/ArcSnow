@@ -23,7 +23,7 @@ class Toolbox(object):
         """Define the toolbox (the name of the toolbox is the name of the
         .pyt file)."""
         self.label = "Snowflake ETL"
-        self.alias = "snowflake_toolbox"
+        self.alias = "snowflake"
 
         # List of tool classes associated with this toolbox
         self.tools = [
