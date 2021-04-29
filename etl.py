@@ -91,35 +91,10 @@ class download_query(object):
         parameters[4].value = arcpy.conversion.TableToTable(file_name, out_database, out_name)
         
 
-    def _field_type(self, field):
-        if field[2] == 'TEXT' or field[2] == 'GEOGRAPHY':
-            return 'TEXT'
-        elif field[2] == 'NUMBER' and field[4] is not None:
-            return 'DOUBLE'
-        elif field[2] == "FLOAT":
-            return 'FLOAT'
-        elif field[2] == "BOOLEAN":
-            return 'SHORT'
-        else:
-            return 'LONG'
-            
-    def _field_length(self, field):
-        if field[2] == 'TEXT':
-            return field[3]
-        else:
-            return 0
-        
-    def _field_name(self, field):
-        return field[0]
-
-    def _field_nullable(self, field):
-        return 'NULLABLE' if field[1] == 'YES' else 'NON_NULLABLE'
-        
-
 class create_table(object):
     def __init__(self):
         self.label = "Create Table"
-        self.description = "Convert a Snowflake table from a DETable"
+        self.description = "Create a Snowflake table from a DETable"
         self.canRunInBackground = False
         self.category = "Snowflake"
         self._field_lookup = {
