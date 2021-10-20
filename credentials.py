@@ -19,6 +19,7 @@ class Credentials(object):
         self.username = ""
         self.__password = ""
         self.account = ""
+        self.role = ""
         self.warehouse = ""
         self.database = ""
         self.schema = ""
@@ -53,7 +54,7 @@ class Credentials(object):
         key_filename = os.path.join(self.location, self.__key_file)
 
         with open(cred_filename, 'w') as file_in:
-            file_in.write(f"#Credential File:\nUsername={self.username}\nPassword={self.__password}\nAccount={self.account}\nWarehouse={self.warehouse}\nDatabase={self.database}\nSchema={self.schema}")
+            file_in.write(f"#Credential File:\nUsername={self.username}\nPassword={self.__password}\nAccount={self.account}\nRole={self.role}\nWarehouse={self.warehouse}\nDatabase={self.database}\nSchema={self.schema}")
 
         if(os.path.exists(key_filename)):
             os.remove(key_filename)
@@ -89,7 +90,7 @@ class Credentials(object):
                 config = {}
                 for line in lines:
                     tuples = line.rstrip('\n').split('=',1)
-                    if tuples[0] in ('Username', 'Password', 'Account', 'Warehouse', 'Database', 'Schema'):
+                    if tuples[0] in ('Username', 'Password', 'Account', 'Role', 'Warehouse', 'Database', 'Schema'):
                         config[tuples[0]] = tuples[1]
 
                 #Password decryption
@@ -99,6 +100,7 @@ class Credentials(object):
                 self.username = config['Username']
                 self.password = config['Password']
                 self.account = config['Account']
+                self.role = config['Role']
                 self.warehouse = config['Warehouse']
                 self.database = config['Database']
                 self.schema = config['Schema']
@@ -117,6 +119,7 @@ class generate_credentials(object):
         
     def getParameterInfo(self):
         """Define parameter definitions"""
+        # 0
         username = arcpy.Parameter(
             displayName="Username",
             name="username",
@@ -124,20 +127,34 @@ class generate_credentials(object):
             parameterType="Required",
             direction="Input")
             
+        # 1
         password = arcpy.Parameter(
             displayName="Password",
             name="password",
             datatype="GPStringHidden",
             parameterType="Required",
             direction="Input")
-            
+
+        # 2
         account = arcpy.Parameter(
             displayName="Account",
             name="account",
             datatype="GPString",
             parameterType="Required",
             direction="Input")
-            
+        
+        # 3
+        role = arcpy.Parameter(
+            displayName="Role",
+            name="role",
+            datatype="GPString",
+            parameterType="Required",
+            direction="Input")
+
+        # Set a default Value
+        role.value = "SYSADMIN"
+        
+        # 4
         warehouse = arcpy.Parameter(
             displayName="Warehouse",
             name="warehouse",
@@ -145,27 +162,30 @@ class generate_credentials(object):
             parameterType="Required",
             direction="Input")
             
+        # 5
         database = arcpy.Parameter(
             displayName="Database",
             name="database",
             datatype="GPString",
             parameterType="Required",
             direction="Input")
-            
+
+        # 6    
         schema = arcpy.Parameter(
             displayName="Schema",
             name="schema",
             datatype="GPString",
             parameterType="Required",
             direction="Input")
-
+        # 7
         output_path = arcpy.Parameter(
             displayName="Output Location",
             name="output",
             datatype="DEFolder",
             parameterType="Required",
             direction="Input")
-            
+
+        # 8    
         out_file = arcpy.Parameter(
             displayName = "Out Credential File",
             name = "credential_filepath",
@@ -175,16 +195,16 @@ class generate_credentials(object):
          
         output_path.value = arcpy.mp.ArcGISProject("CURRENT").homeFolder
 
-        return [username, password, account, warehouse, database, schema, output_path, out_file]
+        return [username, password, account, role, warehouse, database, schema, output_path, out_file]
 
     def updateParameters(self, parameters):
-        if not parameters[6].value:
-            parameters[6].value = arcpy.mp.ArcGISProject("CURRENT").homeFolder
+        if not parameters[7].value:
+            parameters[7].value = arcpy.mp.ArcGISProject("CURRENT").homeFolder
                       
-        if not parameters[6].hasBeenValidated or not parameters[6].altered:
+        if not parameters[7].hasBeenValidated or not parameters[7].altered:
             credentials = Credentials()
-            credentials.location = parameters[6].valueAsText
-            parameters[7].value = credentials.path
+            credentials.location = parameters[7].valueAsText
+            parameters[8].value = credentials.path
         
     def execute(self, parameters, messages):        
         credentials = Credentials()
@@ -192,21 +212,27 @@ class generate_credentials(object):
         credentials.username = parameters[0].valueAsText
         credentials.password = parameters[1].valueAsText
         credentials.account = parameters[2].valueAsText
-        credentials.warehouse = parameters[3].valueAsText
-        credentials.database = parameters[4].valueAsText
-        credentials.schema = parameters[5].valueAsText
-        credentials.location = parameters[6].valueAsText
+        credentials.role = parameters[3].valueAsText
+        credentials.warehouse = parameters[4].valueAsText
+        credentials.database = parameters[5].valueAsText
+        credentials.schema = parameters[6].valueAsText
+        credentials.location = parameters[7].valueAsText
         
         credentials.create_cred()
         
-        parameters[7].value = credentials.path
+        parameters[8].value = credentials.path
         
-        
+
+       
+
+    
+           
 if __name__ == "__main__":
     credentials = Credentials()
-    credentials.username = "HYIMHK"
+    credentials.username = "Username"
     credentials.password = "test"
-    credentials.account = "ppa07348"
+    credentials.account = "xyz01234"
+    credentials.role = "SYSADMIN"
     credentials.warehouse = "COMPUTE_WH"
     credentials.database = "DEMO_DB"
     credentials.schema = "PUBLIC"

@@ -8,7 +8,7 @@ import csv
 import pandas as pd
 
 from arcsnow import test_credentials
-from credentials import generate_credentials
+from credentials import generate_credentials 
 from etl import csv_upload
 from etl import create_table
 from etl import download_query
@@ -22,8 +22,8 @@ class Toolbox(object):
     def __init__(self):
         """Define the toolbox (the name of the toolbox is the name of the
         .pyt file)."""
-        self.label = "Snowflake ETL"
-        self.alias = "snowflake_toolbox"
+        self.label = "Snowflake ETL Toolbox"
+        self.alias = "ArcSnow"
 
         # List of tool classes associated with this toolbox
         self.tools = [
