@@ -453,7 +453,7 @@ class csv_upload(object):
         for i in range(len(csv_upload.df)):
             row = csv_upload.df.iloc[i]
 
-            arcpy.AddMessage(f'Execute: Row {i} Data : {row}')
+            # arcpy.AddMessage(f'Execute: Row {i} Data : {row}')
 
             # Start data_string
             data_string = f"("
