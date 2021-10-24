@@ -15,6 +15,7 @@ class ArcSnow(object):
             user=self._credentials.username,
             password=self._credentials.rawpass,
             account=self._credentials.account,
+            role=self._credentials.role,
             warehouse=self._credentials.warehouse,
             database=self._credentials.database,
             schema=self._credentials.schema
@@ -22,14 +23,14 @@ class ArcSnow(object):
         
         arcpy.AddMessage("Connection successful")
         
-        self._conn.cursor().execute("USE ROLE ACCOUNTADMIN;")       
+        self._conn.cursor().execute(f"USE ROLE {self._credentials.role};")       
         self._conn.cursor().execute(f"USE WAREHOUSE {self._credentials.warehouse};")
         self._conn.cursor().execute(f"USE SCHEMA  {self._credentials.schema};")
         self._conn.cursor().execute(f"USE DATABASE {self._credentials.database}")
         
         arcpy.AddMessage("\n")
         arcpy.AddMessage("Current configuration")
-        arcpy.AddMessage(f"  Role: ACCOUNTADMIN")
+        arcpy.AddMessage(f"  Role: {self._credentials.role}")
         arcpy.AddMessage(f"  Warehouse: {self._credentials.warehouse}")
         arcpy.AddMessage(f"  Database: {self._credentials.database}")
         arcpy.AddMessage(f"  Schema: {self._credentials.schema}")
@@ -91,7 +92,7 @@ class test_credentials(object):
         arcsnow.login()
         
         parameters[1].value = True
-        
+
 if __name__ == "__main__":
     arcsnow = ArcSnow("CredentialsFile.ini")
     arcsnow.login()

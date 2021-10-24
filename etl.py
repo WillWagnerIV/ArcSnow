@@ -3,9 +3,17 @@
 import os
 import csv
 import arcpy
+from arcpy.arcobjects.arcobjects import Schema
 import arcsnow as asn
 import pandas as pd
 import tempfile
+
+
+# The Snowflake Connector library.
+import snowflake.connector as snow
+from snowflake.connector.pandas_tools import write_pandas
+
+
 
 class download_query(object):
     def __init__(self):
@@ -190,9 +198,14 @@ class csv_upload(object):
     def __init__(self):
         """Define the tool (tool name is the name of the class)."""
         self.label = "Upload CSV"
-        self.description = "Upload a CSV as a table to Snowflake"
+        self.description = "Upload a CSV as a Table to Snowflake"
         self.canRunInBackground = False
         self.category = "ETL"
+
+    df = pd.DataFrame()
+    long_table_name = ""
+    field_definitions = []
+
 
     def _dtype_to_ftype(self, s):
         lookup = {
@@ -205,12 +218,12 @@ class csv_upload(object):
             "datetime":"DATETIME"            
         }
 
-        return lookup[str(s)]
+        return str(lookup[str(s)])
 
     def _fix_field_name(self, s):
         s = s.strip()
         
-        for c in "()+~`-;:'><?/\\|\" ^":
+        for c in "()+~`-;:'><?/\\| ^":
             s = s.replace(c, "_")
 
         while "__" in s:
@@ -236,13 +249,32 @@ class csv_upload(object):
             parameterType="Required",
             direction="Input")
             
-        input_csv_path = arcpy.Parameter(
+        input_csv = arcpy.Parameter(
             displayName="Input CSV",
             name="in_csv",
             datatype="DEFile",
             parameterType="Required",
             direction="Input")
         
+        db_name = arcpy.Parameter(
+            displayName="Database Name",
+            name="db_name",
+            datatype="GPString",
+            parameterType="Required",
+            direction="Input")
+
+        db_name.value = "ARCSNOW_DB"
+
+        schema_name = arcpy.Parameter(
+            displayName="Schema Name",
+            name="schema_name",
+            datatype="GPString",
+            parameterType="Optional",
+            direction="Input")
+
+        schema_name.value = "ARCSNOW_TESTING_SCHEMA"
+
+        # 4
         table_name = arcpy.Parameter(
             displayName="Table Name",
             name="table_name",
@@ -250,23 +282,30 @@ class csv_upload(object):
             parameterType="Required",
             direction="Input")
         
-        field_definitions = arcpy.Parameter(
-            displayName="Field Definitions",
+
+        # 5
+        # CSV Field Defs = params[5]
+        csv_field_defs = arcpy.Parameter(
+            displayName="Col Names to Field Definitions",
             name="field_definition",
             datatype="GPValueTable",
             parameterType="Optional",
             direction="Input")
 
-        field_definitions.columns = [
+        # Field Defs Parameter Columns
+        csv_field_defs.columns = [
             ['GPString', 'Name'],
             ['GPString', 'Type'],
             ['GPLong', 'Length'],
             ['GPBoolean', 'Nullable']
         ]
         
-        field_definitions.filters[1].type = 'ValueList'
-        field_definitions.filters[1].list = ['VARCHAR', 'DOUBLE', 'INT', 'DATETIME']
-               
+        # Field Defs Parameter Columns Filters
+        csv_field_defs.filters[1].type = 'ValueList'
+        csv_field_defs.filters[1].list = ['VARCHAR', 'DOUBLE', 'INT', 'DATETIME']
+
+
+        # 6 Output Table Name
         out_table_name = arcpy.Parameter(
             displayName="Output Table Name",
             name="out_table_name",
@@ -274,7 +313,8 @@ class csv_upload(object):
             parameterType="Derived",
             direction="Output")
         
-        params = [credentials, input_csv_path, table_name, field_definitions, out_table_name]
+
+        params = [credentials, input_csv, db_name, schema_name, table_name, csv_field_defs, out_table_name]
         return params
 
     def isLicensed(self):
@@ -285,79 +325,171 @@ class csv_upload(object):
         """Modify the values and properties of parameters before internal
         validation is performed.  This method is called whenever a parameter
         has been changed."""
+
+        arcpy.AddMessage(f"csv_field_defs: {parameters[5]}")
+
         if not parameters[1].hasBeenValidated and parameters[1].valueAsText:
-            parameters[2].value = os.path.splitext(os.path.basename(parameters[1].valueAsText))[0]
+            parameters[4].value = os.path.splitext(os.path.basename(parameters[1].valueAsText))[0]
             
-            df = pd.read_csv(parameters[1].valueAsText, engine='python', sep=',\s+', quoting=csv.QUOTE_ALL)
+            csv_upload.df = pd.read_csv(parameters[1].valueAsText)
+
+            renamed = []
             fields = []
-            for i in range(len(df.columns)):
-                fields.append([
-                    self._fix_field_name(df.columns[i]), # field name
-                    self._dtype_to_ftype(df.dtypes[i]), # field type
-                    255 if self._dtype_to_ftype(df.dtypes[i]) == "VARCHAR" else None, #field length
-                    True, # nullable
-                ])
-            parameters[3].values = fields
+            values_fields = f''
+            # Create a list of the df column names
+            dcl = csv_upload.df.columns.copy(deep=True)
+
+            for i, dc in enumerate(dcl):
+
+                # Create a row in the table for each Col/Field
+
+                a_field = []
+                print (f"dc info = {csv_upload.df.dtypes[dc]}")
+                a_field_name = self._fix_field_name(dc)
+                renamed.append(a_field_name)
+                a_field_type = self._dtype_to_ftype(csv_upload.df.dtypes[dc]) # field type
+                if a_field_type == "VARCHAR": 
+                    a_field_len = 255
+                else:
+                    a_field_len = None
+                a_field_nullable = 'true'
+
+                a_field = [a_field_name, a_field_type, a_field_len, a_field_nullable]
+                csv_upload.field_definitions.append(a_field)
+
+
+                # Update the Parameters String
+                values_field = f"'{a_field_name}' {a_field_type} {a_field_len} {a_field_nullable}"
+                if i < len(dcl)-1:
+                    values_field += f";"
+                values_fields += f"{values_field}"
+
+            csv_upload.df.columns = renamed
+
+        parameters[5].values = csv_upload.field_definitions
+
+        # SAMPLE
+        # CREATE TABLE "ARCSNOW_DB"."ARCSNOW_TESTING_SCHEMA"."SQL_TESTING_TABLE" ("C1" STRING);
+
+        db_name = parameters[2].valueAsText
+        schema_name = parameters[3].valueAsText
+        table_name = parameters[4].valueAsText
+        # Create an Explicit Table Name
+        csv_upload.long_table_name = f'"{db_name}"."{schema_name}"."{table_name}"'
+        parameters[6].value = csv_upload.long_table_name
+
         return
 
     def updateMessages(self, parameters):
         """Modify the messages created by internal validation for each tool
         parameter.  This method is called after internal validation."""
+
         return
 
     def execute(self, parameters, messages):
-        """The source code of the tool."""
+        """Executes when Run button is pressed."""
+
+        # Get the Credentials
         arcsnow = asn.ArcSnow(parameters[0].valueAsText)
         arcsnow.login()
 
-        table_name = parameters[2].valueAsText
-        field_definitions = parameters[3].values
-        field_names = [f[0] for f in field_definitions]
-        arcsnow.cursor.execute(f"DROP TABLE IF EXISTS {table_name};")
-                        
+        # Create a Cursor
+        snow_cur = arcsnow.cursor
+
+        # DB Info
+        db_name = parameters[2].valueAsText
+        schema_name = parameters[3].valueAsText
+        table_name = parameters[4].valueAsText
+        csv_upload.field_definitions = parameters[5].value
+        field_names = [f[0] for f in csv_upload.field_definitions]
+        
+        arcpy.AddMessage(f"field_definitions: {parameters[5].value}")
+
+        # Create a Schema and/or Drop the Table if it exists
+        snow_cur.execute(f"CREATE SCHEMA IF NOT EXISTS {schema_name};")
+        snow_cur.execute(f"USE SCHEMA {schema_name};")
+        snow_cur.execute(f"DROP TABLE IF EXISTS {table_name};")
+
+        # Create the Table SQL Statement
+        create_table = f'CREATE TABLE IF NOT EXISTS {csv_upload.long_table_name} ('
+
         fields = []
-        for field in field_definitions:
+        for i, field in enumerate(csv_upload.field_definitions):
             field_name = field[0]
             field_type = field[1]
-            if field_type == "VARCHAR":
+            if "VARCHAR" in field_type:
                 field_type += f'({field[2]})'
 
-            fields.append(f'{field_name} {field_type}')
+
+            create_table += f'"{field_name}" {field_type} NOT NULL '
+            if i < len(csv_upload.field_definitions)-1:
+                create_table += f', '
+
+            fields.append(f'{field_name} {field_type} {field[3]}')
             
         fields = ",".join(fields)
+        # arcpy.AddMessage(f"Execute Fields: {fields}")
 
-        create_table = f"CREATE TABLE {table_name} ({fields});"
-        arcpy.AddMessage(create_table)
+        create_table += f');'
+        arcpy.AddMessage(f"Create Table SQL: {create_table}")
 
-        arcsnow.cursor.execute(create_table)
-        arcsnow.cursor.execute(f'GRANT ALL ON {table_name} TO ROLE ACCOUNTADMIN;')
-        arcsnow.cursor.execute(f'GRANT SELECT ON {table_name} TO ROLE PUBLIC;')
+        snow_cur.execute(create_table)
+        snow_cur.execute(f'GRANT ALL ON {csv_upload.long_table_name} TO ROLE ACCOUNTADMIN;')
+        snow_cur.execute(f'GRANT SELECT ON {csv_upload.long_table_name} TO ROLE PUBLIC;')
         
-        df = pd.read_csv(parameters[1].valueAsText, engine='python', sep=',\s+', quoting=csv.QUOTE_ALL)
+        # SAMPLE
+        # INSERT INTO "ARCSNOW_DB"."ARCSNOW_TESTING_SCHEMA"."CSV_UPLOAD_TESTS_2_COL" 
+        # ("INDEX","FIRST_COL") 
+        # VALUES (1,'First Col1'),(2,'First Col2'),(3,'First Col3'),(4,'First Col4'),
+        # (5,'First Col5'),(6,'First Col6'),(7,'First Col7'),(8,'First Col8'),(9,'First Col9');
 
-        fields = ",".join(field_names)
+        csv_upload.sql_fields_list = ','.join(f'"{x}"' for x in field_names)
+
+        # Create INSERT ROWS SQL
+        insert_values_sql = f'INSERT INTO {csv_upload.long_table_name} ({csv_upload.sql_fields_list}) VALUES '
+        
+        # arcpy.AddMessage(f"SQL for INSERT: {insert_values_sql}")
         rows = []
-        for index, row in df.iterrows():
-            data = []
-            for index, c_name in enumerate(df):
+        for i in range(len(csv_upload.df)):
+            row = csv_upload.df.iloc[i]
+
+            arcpy.AddMessage(f'Execute: Row {i} Data : {row}')
+
+            # Start data_string
+            data_string = f"("
+            for c_index, c_name in enumerate(csv_upload.df):
                 value = row[c_name]
-                if field_definitions[index][1] == "VARCHAR":
-                    data.append(f"'{value}'")
+                # arcpy.AddMessage(f'Execute: field_definitions[c_index][1] : {csv_upload.field_definitions[c_index][1]}')
+                if 'VARCHAR' in csv_upload.field_definitions[c_index][1]:
+                    data_string += f"'{value}'"
                 else:
-                    data.append(str(value))
+                    data_string += f"{value}"
 
-            rows.append(",".join(data))
+                if c_index < len(row)-1:
+                    data_string += f', '
+                else:
+                    data_string += f")"
 
-        values = ','.join([f'({x})' for x in rows])
+            if i < len(csv_upload.df)-1:
+                data_string += f', '
+            # End data_string
+
+            rows.append(data_string)
+
+        values = ''.join(f'{x}' for x in rows)
+        insert_values_sql += values
+        # End SQL for INSERT
+        insert_values_sql += f';'
         
-        insert_values = f'INSERT INTO {table_name} ({fields}) VALUES {values};'
-        
-        arcpy.AddMessage(insert_values)
+        arcpy.AddMessage(f'INSERT SQL: {insert_values_sql}')
+        # arcpy.AddMessage(f'Execute: values : {values}')
 
-        arcsnow.cursor.execute(insert_values)
+        snow_cur.execute(insert_values_sql)
         arcsnow.logout()
-        
-        parameters[4].value = table_name
-            
+                    
         return
 
+
+if __name__ == "__main__":
+    asnow = asn.ArcSnow("CredentialsFile.ini")
+    asnow.login()
