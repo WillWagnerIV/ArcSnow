@@ -11,9 +11,9 @@
 <div style="text-align: right">
 Principal Contributors:
 
-  Brian Hilton
-  Ho Ming Yim
-  Will Wagner
+  Brian Hilton,
+  Ho Ming Yim,
+  Will Wagner,
   John Tangenberg
 
 </div>
