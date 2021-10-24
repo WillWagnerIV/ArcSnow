@@ -22,8 +22,16 @@ class Toolbox(object):
     def __init__(self):
         """Define the toolbox (the name of the toolbox is the name of the
         .pyt file)."""
-        self.label = "Snowflake ETL Toolbox"
+        self.label = "ArcGIS Pro <> Snowflake Transfer Toolbox"
         self.alias = "ArcSnow"
+        self.description = "An Open Source ArcGIS Pro Toolbox for use with Snowflake. \
+                            This Toolbox was created by members of the Advanced GIS Practicum Course \
+                            at Claremont Graduate University. \
+                            Principal Contributors: \
+                            Brian Hilton \
+                            Ho Ming Yim \
+                            Will Wagner \
+                            John Tangenberg"
 
         # List of tool classes associated with this toolbox
         self.tools = [
@@ -40,8 +48,8 @@ class Toolbox(object):
 class insert_into(object):
     def __init__(self):
         """Define the tool (tool name is the name of the class)."""
-        self.label = "Insert Into"
-        self.description = "Insert rows into a table inside of Snowflake"
+        self.label = "Insert Rows Into Snowflake Table"
+        self.description = "Insert rows into a Snowflake table."
         self.canRunInBackground = False
         self.category = "Snowflake"
     
