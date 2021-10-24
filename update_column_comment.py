@@ -8,7 +8,7 @@ class update_comment(object):
     def __init__(self):
         """Define the tool (tool name is the name of the class)."""
         self.label = "Update Column Comments"
-        self.description = "Update columna comments from CSV exported from Dataedo"
+        self.description = "Update column comments from CSV exported from Dataedo"
         self.canRunInBackground = False
         self.category = "Dataedo"
     
