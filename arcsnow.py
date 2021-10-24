@@ -63,9 +63,9 @@ class test_credentials(object):
     def __init__(self):
         """Define the tool (tool name is the name of the class)."""
         self.label = "Test Credentials"
-        self.description = "Test a Snowflake credential"
+        self.description = "Test ArcSnow (Snowflake) credentials and defaults."
         self.canRunInBackground = False
-        self.category = "Preparation"
+        self.category = "Pre-Flight"
         
     def getParameterInfo(self):
         """Define parameter definitions"""

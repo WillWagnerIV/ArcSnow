@@ -115,7 +115,7 @@ class generate_credentials(object):
         self.label = "Generate Credential File"
         self.description = "Create a credentials file used to authenticate with Snowflake"
         self.canRunInBackground = False
-        self.category = "Preparation"
+        self.category = "Pre-Flight"
         
     def getParameterInfo(self):
         """Define parameter definitions"""

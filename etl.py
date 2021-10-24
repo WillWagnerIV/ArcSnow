@@ -339,9 +339,8 @@ class csv_upload(object):
             # Create a list of the df column names
             dcl = csv_upload.df.columns.copy(deep=True)
 
+            # Create a row in the table for each Col/Field
             for i, dc in enumerate(dcl):
-
-                # Create a row in the table for each Col/Field
 
                 a_field = []
                 print (f"dc info = {csv_upload.df.dtypes[dc]}")
