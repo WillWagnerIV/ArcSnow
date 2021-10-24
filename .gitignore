@@ -5,6 +5,7 @@
 !*.py
 !.gitignore
 !.gitattributes
+!*.xml
 
 __pycache__/
 *.py[cod]
