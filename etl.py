@@ -263,7 +263,8 @@ class csv_upload(object):
             parameterType="Required",
             direction="Input")
 
-        db_name.value = "ARCSNOW_DB"
+        # Set Default Value
+        # db_name.value = "ARCSNOW_DB"
 
         schema_name = arcpy.Parameter(
             displayName="Schema Name",
@@ -272,7 +273,8 @@ class csv_upload(object):
             parameterType="Optional",
             direction="Input")
 
-        schema_name.value = "ARCSNOW_TESTING_SCHEMA"
+        # Set Default Value
+        # schema_name.value = "ARCSNOW_TESTING_SCHEMA"
 
         # 4
         table_name = arcpy.Parameter(
@@ -436,6 +438,13 @@ class csv_upload(object):
         snow_cur.execute(f'GRANT ALL ON {csv_upload.long_table_name} TO ROLE ACCOUNTADMIN;')
         snow_cur.execute(f'GRANT SELECT ON {csv_upload.long_table_name} TO ROLE PUBLIC;')
         
+
+        # TODO CONVERT THE FOLLOWING TO LINE BY LINE ASAP!!!!
+        # This creates one long SQL statement
+        # Because the data is in the SQL it can be both read 
+        # and creates a string that is extremely long.
+
+
         # SAMPLE
         # INSERT INTO "ARCSNOW_DB"."ARCSNOW_TESTING_SCHEMA"."CSV_UPLOAD_TESTS_2_COL" 
         # ("INDEX","FIRST_COL") 
