@@ -22,7 +22,7 @@ class Credentials(object):
         self.role = ""
         self.warehouse = ""
         self.database = ""
-        self.schema = ""
+        self.db_schema = ""
         #File names and decyrption key
 
 
@@ -54,7 +54,7 @@ class Credentials(object):
         key_filename = os.path.join(self.location, self.__key_file)
 
         with open(cred_filename, 'w') as file_in:
-            file_in.write(f"#Credential File:\nUsername={self.username}\nPassword={self.__password}\nAccount={self.account}\nRole={self.role}\nWarehouse={self.warehouse}\nDatabase={self.database}\nSchema={self.schema}")
+            file_in.write(f"#Credential File:\nUsername={self.username}\nPassword={self.__password}\nAccount={self.account}\nRole={self.role}\nWarehouse={self.warehouse}\nDatabase={self.database}\nSchema={self.db_schema}")
 
         if(os.path.exists(key_filename)):
             os.remove(key_filename)
@@ -103,7 +103,7 @@ class Credentials(object):
                 self.role = config['Role']
                 self.warehouse = config['Warehouse']
                 self.database = config['Database']
-                self.schema = config['Schema']
+                self.db_schema = config['Schema']
             return True
             
         except:
@@ -171,9 +171,9 @@ class generate_credentials(object):
             direction="Input")
 
         # 6    
-        schema = arcpy.Parameter(
-            displayName="Schema",
-            name="schema",
+        db_schema = arcpy.Parameter(
+            displayName="Database Schema",
+            name="db_schema",
             datatype="GPString",
             parameterType="Required",
             direction="Input")
@@ -195,7 +195,7 @@ class generate_credentials(object):
          
         output_path.value = arcpy.mp.ArcGISProject("CURRENT").homeFolder
 
-        return [username, password, account, role, warehouse, database, schema, output_path, out_file]
+        return [username, password, account, role, warehouse, database, db_schema, output_path, out_file]
 
     def updateParameters(self, parameters):
         if not parameters[7].value:
@@ -215,7 +215,7 @@ class generate_credentials(object):
         credentials.role = parameters[3].valueAsText
         credentials.warehouse = parameters[4].valueAsText
         credentials.database = parameters[5].valueAsText
-        credentials.schema = parameters[6].valueAsText
+        credentials.db_schema = parameters[6].valueAsText
         credentials.location = parameters[7].valueAsText
         
         credentials.create_cred()
@@ -235,6 +235,6 @@ if __name__ == "__main__":
     credentials.role = "SYSADMIN"
     credentials.warehouse = "COMPUTE_WH"
     credentials.database = "DEMO_DB"
-    credentials.schema = "PUBLIC"
+    credentials.db_schema = "PUBLIC"
     
     credentials.create_cred()

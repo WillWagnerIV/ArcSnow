@@ -18,28 +18,28 @@ class ArcSnow(object):
             role=self._credentials.role,
             warehouse=self._credentials.warehouse,
             database=self._credentials.database,
-            schema=self._credentials.schema
+            db_schema=self._credentials.db_schema
             )
         
         arcpy.AddMessage("Connection successful")
         
-        self._conn.cursor().execute(f"USE ROLE {self._credentials.role};")       
-        self._conn.cursor().execute(f"USE WAREHOUSE {self._credentials.warehouse};")
-        self._conn.cursor().execute(f"USE SCHEMA  {self._credentials.schema};")
-        self._conn.cursor().execute(f"USE DATABASE {self._credentials.database}")
         
         arcpy.AddMessage("\n")
         arcpy.AddMessage("Current configuration")
+        self._conn.cursor().execute(f"USE ROLE {self._credentials.role};")       
         arcpy.AddMessage(f"  Role: {self._credentials.role}")
+        self._conn.cursor().execute(f"USE WAREHOUSE {self._credentials.warehouse};")
         arcpy.AddMessage(f"  Warehouse: {self._credentials.warehouse}")
+        self._conn.cursor().execute(f"USE DATABASE {self._credentials.database}")
         arcpy.AddMessage(f"  Database: {self._credentials.database}")
-        arcpy.AddMessage(f"  Schema: {self._credentials.schema}")
+        self._conn.cursor().execute(f"USE SCHEMA  {self._credentials.db_schema};")
+        arcpy.AddMessage(f"  Schema: {self._credentials.db_schema}")
     
     def logout(self):
         self._conn.cursor().close()
         self._conn.close()
         
-    def schema(self, table_name):
+    def get_schema(self, table_name):
         results = self._conn.cursor().execute("""SELECT COLUMN_NAME, IS_NULLABLE, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION \
         FROM INFORMATION_SCHEMA.COLUMNS\
         WHERE TABLE_NAME='{}'""".format(table_name))
@@ -91,8 +91,11 @@ class test_credentials(object):
         arcsnow = ArcSnow(parameters[0].valueAsText)
         arcsnow.login()
         
+        arcpy.AddMessage(f"Schema: {arcsnow._credentials.db_schema}")
+
         parameters[1].value = True
 
 if __name__ == "__main__":
     arcsnow = ArcSnow("CredentialsFile.ini")
     arcsnow.login()
+

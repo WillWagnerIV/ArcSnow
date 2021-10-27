@@ -294,6 +294,17 @@ class csv_upload(object):
             parameterType="Optional",
             direction="Input")
 
+
+        # 6 Output Table Name
+        out_table_name = arcpy.Parameter(
+            displayName="Output Table Name",
+            name="out_table_name",
+            datatype="GPString",
+            parameterType="Derived",
+            direction="Output")
+
+    
+
         # Field Defs Parameter Columns
         csv_field_defs.columns = [
             ['GPString', 'Name'],
@@ -305,16 +316,6 @@ class csv_upload(object):
         # Field Defs Parameter Columns Filters
         csv_field_defs.filters[1].type = 'ValueList'
         csv_field_defs.filters[1].list = ['VARCHAR', 'DOUBLE', 'INT', 'DATETIME']
-
-
-        # 6 Output Table Name
-        out_table_name = arcpy.Parameter(
-            displayName="Output Table Name",
-            name="out_table_name",
-            datatype="GPString",
-            parameterType="Derived",
-            direction="Output")
-        
 
         params = [credentials, input_csv, db_name, schema_name, table_name, csv_field_defs, out_table_name]
         return params
@@ -330,7 +331,17 @@ class csv_upload(object):
 
         arcpy.AddMessage(f"csv_field_defs: {parameters[5]}")
 
+        # if there's a change to Credentials parameter
+        # if not parameters[0].hasBeenValidated and parameters[1].valueAsText:
+            # TODO Get the Schema name from the Credentials File
+            # parameters[3].value = _credentials.db_schema
+
+
+
+        # if there's a change to CSV parameter
         if not parameters[1].hasBeenValidated and parameters[1].valueAsText:
+
+            # Use the CSV name as the Table name
             parameters[4].value = os.path.splitext(os.path.basename(parameters[1].valueAsText))[0]
             
             csv_upload.df = pd.read_csv(parameters[1].valueAsText)
@@ -412,7 +423,7 @@ class csv_upload(object):
         snow_cur.execute(f"DROP TABLE IF EXISTS {table_name};")
 
         # Create the Table SQL Statement
-        create_table = f'CREATE TABLE IF NOT EXISTS {csv_upload.long_table_name} ('
+        create_table_sql = f'CREATE TABLE IF NOT EXISTS {csv_upload.long_table_name} ('
 
         fields = []
         for i, field in enumerate(csv_upload.field_definitions):
@@ -422,19 +433,19 @@ class csv_upload(object):
                 field_type += f'({field[2]})'
 
 
-            create_table += f'"{field_name}" {field_type} NOT NULL '
+            create_table_sql += f'"{field_name}" {field_type} NOT NULL '
             if i < len(csv_upload.field_definitions)-1:
-                create_table += f', '
+                create_table_sql += f', '
 
             fields.append(f'{field_name} {field_type} {field[3]}')
             
         fields = ",".join(fields)
         # arcpy.AddMessage(f"Execute Fields: {fields}")
 
-        create_table += f');'
-        arcpy.AddMessage(f"Create Table SQL: {create_table}")
+        create_table_sql += f');'
+        arcpy.AddMessage(f"Create Table SQL: {create_table_sql}")
 
-        snow_cur.execute(create_table)
+        snow_cur.execute(create_table_sql)
         snow_cur.execute(f'GRANT ALL ON {csv_upload.long_table_name} TO ROLE ACCOUNTADMIN;')
         snow_cur.execute(f'GRANT SELECT ON {csv_upload.long_table_name} TO ROLE PUBLIC;')
         
