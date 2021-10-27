@@ -1,5 +1,5 @@
 # ArcSnow
----
+
 <div style="text-align: justify">
 
 ## ArcSnow is an open-source Python Toolbox for working with Snowflake from within ArcGIS Pro.
@@ -18,9 +18,7 @@ Principal Contributors:
 
 </div>
 
----
-
-#### ArcSnow currently includes scripts that assist with the following functions:
+#### ArcSnow currently includes VERY alpha versions of scripts that assist with the following functions:
 
   - #### Pre-Flight
     - Generate Credentials File
