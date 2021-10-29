@@ -294,7 +294,8 @@ class csv_upload(object):
             parameterType="Optional",
             direction="Input")
 
-
+        csv_field_defs.value = []
+        
         # 6 Output Table Name
         out_table_name = arcpy.Parameter(
             displayName="Output Table Name",
@@ -345,6 +346,7 @@ class csv_upload(object):
             parameters[4].value = os.path.splitext(os.path.basename(parameters[1].valueAsText))[0]
             
             csv_upload.df = pd.read_csv(parameters[1].valueAsText)
+            csv_upload.field_definitions = []
 
             renamed = []
             fields = []
