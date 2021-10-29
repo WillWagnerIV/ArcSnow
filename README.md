@@ -18,6 +18,18 @@ Principal Contributors:
 
 </div>
 
+## Installation
+
+  1) Download from Git. (Click the green `Code` button at the top right of [the ArcSnow Git repo'](https://github.com/WillWagnerIV/ArcSnow).  Use any of the three options.
+  2) Unzip to a location of your choice where you store ArcGIS Toolboxes.
+  3) In ArcGIS Pro:
+    - To add the ArcSnow Toolbox choose EITHER of the following:
+      - 1 Right Click `Catalog > Toolboxes > Add Toolbox`. Choose the unZipped ArcSnow.pyt 
+      
+        OR
+      - 2 Go to the Insert Tab in your project, `Toolbox > Add Toolbox`. Choose the unZipped ArcSnow.pyt 
+   
+
 #### ArcSnow currently includes VERY alpha versions of scripts that assist with the following functions:
 
   - #### Pre-Flight
@@ -31,3 +43,5 @@ Principal Contributors:
     - Insert Rows into a Snowflake table
   - #### Dataedo
     - Update Column Comments for Metadata
+
+
