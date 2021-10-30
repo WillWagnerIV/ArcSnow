@@ -20,7 +20,7 @@ Principal Contributors:
 
 ## Installation
 
-  1) Download from Git. (Click the green `Code` button at the top right of [the ArcSnow Git repo'](https://github.com/WillWagnerIV/ArcSnow).  Use any of the three options.
+  1) Download from Git. (Click the green `Code` button at the top right of [the ArcSnow Git repo'](https://github.com/WillWagnerIV/ArcSnow).  Use any of the options provided by the Code menu.
   2) Unzip to a location of your choice where you store ArcGIS Toolboxes.
   3) In ArcGIS Pro:
     - To add the ArcSnow Toolbox choose EITHER of the following:
